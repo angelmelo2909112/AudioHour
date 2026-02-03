@@ -1,0 +1,13 @@
+{
+  "name": "radio-clock",
+  "version": "1.0.0",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "electron": "^30.0.0",
+    "ntp-client": "^0.5.3"
+  }
+}
