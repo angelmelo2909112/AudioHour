@@ -1,8 +1,132 @@
 <!DOCTYPE html>
 <html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Audio Hour Player</title>
+<style>
+body { font-family: Arial; background: #111; color: #fff; padding: 20px; }
+input, select, button { width: 100%; padding: 8px; margin: 6px 0; font-size: 14px; }
+h2 { margin-bottom: 10px; } label { font-size: 13px; opacity: .8; }
+.time { display: flex; justify-content: space-between; font-size: 12px; opacity: .8; }
+</style>
+</head>
 <body>
-<select id="speakers"></select>
-<button id="start">START</button>
-<script src="renderer.js"></script>
+
+<h2>🔊 Audio Hour Player</h2>
+
+<label>Output device</label>
+<select id="outputSelect"></select>
+
+<label>Progress</label>
+<input type="range" id="progress" min="0" max="100" step="0.1" value="0">
+<div class="time">
+  <span id="currentTime">0:00</span>
+  <span id="duration">0:00</span>
+</div>
+
+<label>Volume</label>
+<input type="range" id="volume" min="0" max="1" step="0.01" value="1">
+
+<button id="startBtn">▶ Start Scheduler</button>
+<button id="stopBtn">⏹ Stop Scheduler</button>
+
+<audio id="audio" style="display:none"></audio>
+
+<script>
+const TIMEZONE = "Europe/Madrid";
+const AUDIO_URLS = {
+  1: "https://github.com/angelmelo2909112/los40classic/raw/refs/heads/main/Record_2026-01-17-13-00-37-_online-video-cutter.com_.opus",
+  2: "https://github.com/angelmelo2909112/los40classic/raw/refs/heads/main/2026-01-06-14-01-48-_online-video-cutter.com_.opus",
+  3: "https://github.com/angelmelo2909112/los40classic/raw/refs/heads/main/2026-01-01-15-04-57-_online-video-cutter.com_.opus",
+  4: "https://github.com/angelmelo2909112/los40classic/raw/refs/heads/main/2026-01-01-16-09-58%20(mp3cut.net)%20(1).mp3",
+  5: "https://github.com/angelmelo2909112/los40classic/raw/refs/heads/main/Record_2026-01-07-17-02-44-_online-video-cutter.com_%20(1).opus",
+  6: "https://github.com/angelmelo2909112/los40classic/raw/refs/heads/main/Record_2026-01-10-18-00-13-_online-video-cutter.com_.opus",
+  7: "https://github.com/angelmelo2909112/los40classic/raw/refs/heads/main/2026-01-05-19-02-06-_online-video-cutter.com_.opus",
+  8: "https://github.com/angelmelo2909112/los40classic/raw/refs/heads/main/Record_2026-01-08-23-00-53-_online-video-cutter-_online-video-cutter.com_-_2_.opus",
+  9: "https://github.com/angelmelo2909112/los40classic/raw/refs/heads/main/2026-01-05-21-02-08-_online-video-cutter.com_.opus",
+  10: "https://github.com/angelmelo2909112/los40classic/raw/refs/heads/main/2026-01-05-22-06-37-_online-video-cutter.com_.opus",
+  11: "https://github.com/angelmelo2909112/los40classic/raw/refs/heads/main/Record_2026-01-08-23-00-53-_online-video-cutter-_online-video-cutter.com_.opus",
+  12: "https://github.com/angelmelo2909112/los40classic/raw/refs/heads/main/Record_2026-01-10-12-00-25-_online-video-cutter.com_-_online-video-cutter.com_-_1_.opus"
+};
+
+const audio = document.getElementById('audio')
+const outputSelect = document.getElementById('outputSelect')
+const volume = document.getElementById('volume')
+const progress = document.getElementById('progress')
+const currentTimeLabel = document.getElementById('currentTime')
+const durationLabel = document.getElementById('duration')
+const startBtn = document.getElementById('startBtn')
+const stopBtn = document.getElementById('stopBtn')
+
+let ctx, dest, schedulerInterval, nextTimeout
+
+volume.oninput = () => audio.volume = volume.value
+
+async function loadOutputs(){
+  if(!audio.setSinkId){ outputSelect.innerHTML = '<option>Not supported</option>'; return }
+  const devices = await navigator.mediaDevices.enumerateDevices()
+  outputSelect.innerHTML = ''
+  devices.filter(d=>d.kind==='audiooutput').forEach(d=>{
+    const o = document.createElement('option')
+    o.value = d.deviceId
+    o.textContent = d.label || 'Speaker'
+    outputSelect.appendChild(o)
+  })
+}
+
+async function playAudio(url){
+  if(ctx) stopAudio()
+  ctx = new AudioContext()
+  dest = ctx.destination
+  if(ctx.setSinkId && outputSelect.value) await ctx.setSinkId(outputSelect.value)
+
+  const res = await fetch(url)
+  const buf = await res.arrayBuffer()
+  const audioBuffer = await ctx.decodeAudioData(buf)
+  const source = ctx.createBufferSource()
+  source.buffer = audioBuffer
+  source.connect(dest)
+  source.start()
+}
+
+function stopAudio(){
+  if(ctx){ ctx.close(); ctx=null }
+}
+
+function getHour12(){
+  const parts = new Intl.DateTimeFormat("es-ES",{timeZone:TIMEZONE,hour:'numeric',hour12:true}).formatToParts(new Date())
+  return parseInt(parts.find(p=>p.type==='hour').value)
+}
+
+async function scheduleNextHour(){
+  const now = new Date()
+  const next = new Date()
+  next.setMinutes(0,0,0)
+  next.setHours(next.getHours()+1)
+  const delay = next - now
+  const hour = getHour12()
+  const url = AUDIO_URLS[hour]
+  nextTimeout = setTimeout(async ()=>{
+    await playAudio(url)
+    scheduleNextHour()
+  }, delay)
+}
+
+startBtn.onclick = async ()=>{
+  await navigator.mediaDevices.getUserMedia({audio:true})
+  await loadOutputs()
+  scheduleNextHour()
+}
+
+stopBtn.onclick = ()=>{
+  clearTimeout(nextTimeout)
+  stopAudio()
+}
+
+outputSelect.onchange = async ()=>{
+  if(ctx && ctx.setSinkId) await ctx.setSinkId(outputSelect.value)
+}
+</script>
+
 </body>
 </html>
